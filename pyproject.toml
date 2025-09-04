@@ -1,0 +1,20 @@
+[project]
+name = "fantasuh-league-app"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "ipykernel>=6.30.1",
+    "numpy>=2.3.2",
+    "openai>=1.103.0",
+    "pandas>=2.3.2",
+    "pulp>=3.2.2",
+    "python-dotenv>=1.1.1",
+    "scipy>=1.16.1",
+    "streamlit>=1.49.1",
+    "supabase>=2.18.1",
+    "tqdm>=4.67.1",
+    "yahoo-fantasy-api>=2.12.0",
+    "yahoo-oauth>=2.1.1",
+]
