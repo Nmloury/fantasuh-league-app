@@ -1,7 +1,9 @@
 import os, math
 from datetime import datetime
 from typing import Dict, Any, List
+from collections import ChainMap
 from dotenv import load_dotenv
+import yahoo_fantasy_api as yfa
 from app.lib.supa import supa
 from app.lib.yahoo_client import get_session, get_league
 
@@ -28,19 +30,38 @@ def upsert_managers(sb, lg):
         })
     sb.table("managers").upsert(rows, on_conflict="manager_id").execute()
 
-def upsert_players(sb, lg):
-    # Get all players in the league using lg.taken_players()
-    # TODO: Get all free agents using lg.free_agents() and add them to the players table    
-    taken_players = lg.taken_players()
+def upsert_players(sb, lg, sc):
+    # This gets taken players (T), free agents (FA), waivers (W), and keepers (K)
+    yh = yfa.yhandler.YHandler(sc)
+    
+    # Get league key from the league object
+    league_key = lg.league_id
+    start = 0
+    page = 25
     rows = []
     
-    for player in taken_players:
-        rows.append({
-            "player_id": str(player["player_id"]),
-            "name": player["name"],
-            "pos_type": player["position_type"],
-            "eligible_positions": player["eligible_positions"]
-        })    
+    # Fetch players for all statuses: Taken, Free Agents, Waivers, Keepers
+    for player_status in ["T", "FA", "W", "K"]:
+        print(f"Pulling {player_status} players")
+        start = 0  # Reset start for each status
+        while True:
+            # Get players for this status
+            data = yh.get_players_raw(league_key, start=start, status=player_status)['fantasy_content']['league'][1]['players']
+            if not data:
+                break
+            for player_key, player_data in data.items():
+                if player_key == 'count':
+                    continue
+                player_dict = ChainMap(*[obj for obj in player_data['player'][0] if isinstance(obj, dict)])
+                rows.append({
+                    "player_id": str(player_dict["player_id"]),
+                    "name": player_dict["name"]["full"],
+                    "pos_type": player_dict["position_type"],
+                    "eligible_positions": [pos_dict['position'] for pos_dict in player_dict["eligible_positions"]]
+                })
+            start += page
+    
+    print(f"Added {len(rows)} total players")
     
     # Upsert in chunks
     for part in chunked(rows, 500):
@@ -112,207 +133,157 @@ def write_rosters(sb, lg, week: int):
         sb.table("rosters").upsert(part, on_conflict="week,manager_id,player_id").execute()
 
 def write_player_stats(sb, lg, player_ids: List[str], week: int):
-    # Build stat id -> name map to interpret categories more robustly
-    id_to_name = {}
-    try:
-        # Some versions expose stat_categories() directly
-        cats = lg.stat_categories()  # type: ignore[attr-defined]
-    except Exception:
-        cats = (lg.settings() or {}).get("stat_categories") or []
-    try:
-        for c in cats:
-            sid = str(c.get("stat_id"))
-            nm = (c.get("name") or c.get("display_name") or c.get("display_name_full") or "").lower()
-            if sid:
-                id_to_name[sid] = nm
-    except Exception:
-        pass
-
-    # For some ambiguous categories (e.g., interceptions), use player position to disambiguate DST vs offensive
-    pos_by_pid = {}
-    try:
-        # Limit to the players we are about to fetch to keep payload smaller
-        res = sb.table("players").select("player_id,pos_type").in_("player_id", player_ids).execute()
-        for r in (getattr(res, "data", None) or []):
-            pos_by_pid[str(r.get("player_id"))] = r.get("pos_type")
-    except Exception:
-        pass
-
+    """Write player stats to database using new Yahoo API JSON format."""
     rows = []
-    # Yahoo often limits batch sizes; keep request sizes modest
-    for part_ids in chunked(player_ids, 25):
+    
+    try:
+        # Get all player stats in one request (no chunking needed)
+        stats_resp = lg.player_stats(player_ids, "week", week=week)
+    except Exception:
+        stats_resp = []
+
+    # Process each player's stats
+    for p in (stats_resp or []):
+        pid = str(p.get("player_id") or "")
+        if not pid:
+            continue
+
+        position_type = p.get("position_type", "").upper()
+
+        # Initialize all columns with safe defaults (DB has NOT NULL + defaults)
+        out = {
+            "week": week,
+            "player_id": pid,
+            "total_points": 0.0,
+            "pass_yds": 0,
+            "pass_td": 0,
+            "pass_int": 0,
+            "rush_yds": 0,
+            "rush_td": 0,
+            "rec": 0,
+            "rec_yds": 0,
+            "rec_td": 0,
+            "return_td": 0,
+            "two_pt": 0,
+            "fum_lost": 0,
+            "fum_ret_td": 0,
+            "fg_0_19": 0,
+            "fg_20_29": 0,
+            "fg_30_39": 0,
+            "fg_40_49": 0,
+            "fg_50_plus": 0,
+            "pat_made": 0,
+            "dst_sacks": 0,
+            "dst_int": 0,
+            "dst_fum_rec": 0,
+            "dst_td": 0,
+            "safeties": 0,
+            "blk_kick": 0,
+            "dst_ret_td": 0,
+            "pts_allow_0": 0,
+            "pts_allow_1_6": 0,
+            "pts_allow_7_13": 0,
+            "pts_allow_14_20": 0,
+            "pts_allow_21_27": 0,
+            "pts_allow_28_34": 0,
+            "pts_allow_35_plus": 0,
+            "xpr": 0,
+        }
+
+        # Map stats based on position type and field names
+        if position_type == "O":  # Offensive players
+            out["pass_yds"] = int(p.get("Pass Yds", 0) or 0)
+            out["pass_td"] = int(p.get("Pass TD", 0) or 0)
+            out["pass_int"] = int(p.get("Int", 0) or 0)
+            out["rush_yds"] = int(p.get("Rush Yds", 0) or 0)
+            out["rush_td"] = int(p.get("Rush TD", 0) or 0)
+            out["rec"] = int(p.get("Rec", 0) or 0)
+            out["rec_yds"] = int(p.get("Rec Yds", 0) or 0)
+            out["rec_td"] = int(p.get("Rec TD", 0) or 0)
+            out["return_td"] = int(p.get("Ret TD", 0) or 0)
+            out["two_pt"] = int(p.get("2-PT", 0) or 0)
+            out["fum_lost"] = int(p.get("Fum Lost", 0) or 0)
+            out["fum_ret_td"] = int(p.get("Fum Ret TD", 0) or 0)
+
+        elif position_type == "K":  # Kickers
+            out["fg_0_19"] = int(p.get("FG 0-19", 0) or 0)
+            out["fg_20_29"] = int(p.get("FG 20-29", 0) or 0)
+            out["fg_30_39"] = int(p.get("FG 30-39", 0) or 0)
+            out["fg_40_49"] = int(p.get("FG 40-49", 0) or 0)
+            out["fg_50_plus"] = int(p.get("FG 50+", 0) or 0)
+            out["pat_made"] = int(p.get("PAT Made", 0) or 0)
+
+        elif position_type == "DT":  # Defense/Team
+            out["dst_sacks"] = int(p.get("Sack", 0) or 0)
+            out["dst_int"] = int(p.get("Int", 0) or 0)
+            out["dst_fum_rec"] = int(p.get("Fum Rec", 0) or 0)
+            out["dst_td"] = int(p.get("TD", 0) or 0)
+            out["safeties"] = int(p.get("Safe", 0) or 0)
+            out["blk_kick"] = int(p.get("Blk Kick", 0) or 0)
+            out["dst_ret_td"] = int(p.get("Ret TD", 0) or 0)
+            out["pts_allow_0"] = int(p.get("Pts Allow 0", 0) or 0)
+            out["pts_allow_1_6"] = int(p.get("Pts Allow 1-6", 0) or 0)
+            out["pts_allow_7_13"] = int(p.get("Pts Allow 7-13", 0) or 0)
+            out["pts_allow_14_20"] = int(p.get("Pts Allow 14-20", 0) or 0)
+            out["pts_allow_21_27"] = int(p.get("Pts Allow 21-27", 0) or 0)
+            out["pts_allow_28_34"] = int(p.get("Pts Allow 28-34", 0) or 0)
+            out["pts_allow_35_plus"] = int(p.get("Pts Allow 35+", 0) or 0)
+            out["xpr"] = int(p.get("XPR", 0) or 0)
+
+        # Extract total_points for all position types
         try:
-            # API expects period type and week argument for weekly stats
-            stats_resp = lg.player_stats(part_ids, "week", week=week)
-        except Exception:
-            stats_resp = []
+            total_points_val = p.get("total_points")
+            if total_points_val is not None:
+                out["total_points"] = float(total_points_val)
+        except (ValueError, TypeError):
+            # Keep default value of 0.0 if conversion fails
+            pass
 
-        # Normalize over the response structure differences
-        for p in (stats_resp or []):
-            pid = str(p.get("player_id") or "")
-            if not pid:
-                continue
+        rows.append(out)
 
-            position = (pos_by_pid.get(pid) or "").upper()
-
-            # Initialize all columns with safe defaults (DB has NOT NULL + defaults)
-            out = {
-                "week": week,
-                "player_id": pid,
-                "passing_yards": 0,
-                "passing_tds": 0,
-                "interceptions": 0,
-                "rushing_yards": 0,
-                "rushing_tds": 0,
-                "receptions": 0,
-                "receiving_yards": 0,
-                "receiving_tds": 0,
-                "fumbles_lost": 0,
-                "fg_made": 0,
-                "fg_missed": 0,
-                "xp_made": 0,
-                "dst_sacks": 0,
-                "dst_interceptions": 0,
-                "dst_fumbles_recovered": 0,
-                "dst_tds": 0,
-                "dst_safeties": 0,
-                "dst_points_allowed": 0,
-                "fantasy_points": None,
-            }
-
-            # Try to read fantasy points if present on the record
-            try:
-                val = p.get("total_points")
-                out["fantasy_points"] = float(val)
-            except Exception:
-                pass
-
-            # Offense
-            if nmin("pass yds") or nmin("passing yards"):
-                out["passing_yards"] += ival
-            elif nmin("pass tds") or nmin("passing touchdowns"):
-                out["passing_tds"] += ival
-            elif (nmin("interceptions") or nm == "int") and position != "DST":
-                out["interceptions"] += ival
-            elif nmin("rush yds") or nmin("rushing yards"):
-                out["rushing_yards"] += ival
-            elif nmin("rush tds") or nmin("rushing touchdowns"):
-                out["rushing_tds"] += ival
-            elif nmin("receptions"):
-                out["receptions"] += ival
-            elif nmin("rec yds") or nmin("receiving yards"):
-                out["receiving_yards"] += ival
-            elif nmin("rec tds") or nmin("receiving touchdowns"):
-                out["receiving_tds"] += ival
-            elif nmin("fumbles lost"):
-                out["fumbles_lost"] += ival
-
-            # Kicking
-            elif nmin("field goals made") or (nmin("fg made") and not nmin("miss")):
-                out["fg_made"] += ival
-            elif nmin("field goals missed") or nmin("fg missed"):
-                out["fg_missed"] += ival
-            elif nmin("pat made") or nmin("extra points made") or nmin("xp made"):
-                out["xp_made"] += ival
-
-            # Defense (DST)
-            elif position == "DST" and (nmin("sacks")):
-                out["dst_sacks"] += ival
-            elif position == "DST" and (nmin("interceptions")):
-                out["dst_interceptions"] += ival
-            elif position == "DST" and (nmin("fumbles recovered")):
-                out["dst_fumbles_recovered"] += ival
-            elif position == "DST" and (nmin("safeties")):
-                out["dst_safeties"] += ival
-            elif position == "DST" and (nmin("touchdowns")):
-                out["dst_tds"] += ival
-            elif position == "DST" and (nmin("points allowed") or nmin("pts allowed")):
-                out["dst_points_allowed"] = ival
-            else:
-                # Fallbacks by known IDs if names are missing
-                try:
-                    sid_int = int(sid)
-                except Exception:
-                    sid_int = -1
-
-                    if sid_int in (4,):
-                        out["passing_yards"] += ival
-                    elif sid_int in (5,):
-                        out["passing_tds"] += ival
-                    elif sid_int in (6,):
-                        if position == "DST":
-                            out["dst_interceptions"] += ival
-                        else:
-                            out["interceptions"] += ival
-                    elif sid_int in (10,):
-                        out["rushing_yards"] += ival
-                    elif sid_int in (11,):
-                        out["rushing_tds"] += ival
-                    elif sid_int in (12,):
-                        out["receptions"] += ival
-                    elif sid_int in (13,):
-                        out["receiving_yards"] += ival
-                    elif sid_int in (14,):
-                        out["receiving_tds"] += ival
-                    elif sid_int in (49, 50, 19):
-                        out["fumbles_lost"] += ival
-                    elif sid_int in (22, 23, 24, 25, 26):
-                        out["fg_made"] += ival
-                    elif sid_int in (27, 28):
-                        out["fg_missed"] += ival
-                    elif sid_int in (29,):
-                        out["xp_made"] += ival
-                    elif position == "DST" and sid_int in (32,):
-                        out["dst_sacks"] += ival
-                    elif position == "DST" and sid_int in (33,):
-                        out["dst_interceptions"] += ival
-                    elif position == "DST" and sid_int in (34,):
-                        out["dst_fumbles_recovered"] += ival
-                    elif position == "DST" and sid_int in (35,):
-                        out["dst_safeties"] += ival
-                    elif position == "DST" and sid_int in (36,):
-                        out["dst_tds"] += ival
-                    elif position == "DST" and sid_int in (54,):
-                        out["dst_points_allowed"] = ival
-
-            rows.append(out)
-
+    # Insert all rows in batches
     for part in chunked(rows, 500):
         sb.table("player_stats").upsert(part, on_conflict="week,player_id").execute()
 
 def write_transactions(sb, lg):
     # returns all league transactions; we only need adds (+ possible FAAB)
     # NOTE: doc: league.transactions returns ALL transactions and can be large. :contentReference[oaicite:8]{index=8}
-    txs = lg.transactions(tran_types="add,drop,commish,trade", count=None)  # wrapper: all types
+    txs = lg.transactions(tran_types="add,drop", count=None)  # wrapper: all types
     rows = []
     for tx in txs:
-        ttype = tx.get("type")
+        tx_id = tx.get("transaction_id")
+        status = tx.get("status")
+        ts = tx.get("timestamp")
         ts = datetime.fromtimestamp(int(tx.get("timestamp","0")))
-        faab = None
-        if "faab" in tx and tx["faab"] not in ("", None):
-            try: faab = int(tx["faab"])
-            except Exception: pass
-
-        players = (tx.get("players") or {}).get("player", [])
-        if isinstance(players, dict): players = [players]
+        faab = tx.get("faab_bid")
+        players = [v['player'] for k,v in tx.get("players").items() if k != 'count']
         for p in players:
-            pid = str(p.get("player_id") or p.get("player",{}).get("player_id"))
-            dest = (p.get("transaction_data",{}) or {}).get("destination_team_key") \
-                   or tx.get("trader_team_key") or tx.get("tradee_team_key")
-            if not pid or not dest: 
-                continue
+            player_dict = dict(ChainMap(*reversed(p[0])))
+
+            # normalize transaction_data from list -> dict
+            td = p[1].get("transaction_data")
+            td = td[0] if isinstance(td, list) and td and isinstance(td[0], dict) else td
+
+            # build the single flat dict (keeping 'name' as a nested dict)
+            flat = {**player_dict, **{**p[1], "transaction_data": td}}
+            
+            pid = str(flat.get("player_id"))
+            ttype = flat.get("transaction_data",{}).get("type")
+            dest = flat.get("transaction_data",{}).get("destination_team_key")
+            source = flat.get("transaction_data",{}).get("source_team_key")
             rows.append({
                 "ts": ts.isoformat(),
                 "type": ttype,
-                "manager_id": dest,
+                "tx_id": tx_id,
+                "status": status,
+                "manager_id": dest if dest else source,
                 "player_id": pid,
                 "faab_spent": faab,
-                "details": tx
             })
     for part in chunked(rows, 500):
         sb.table("transactions").upsert(
             part,
-            on_conflict="ts,type,manager_id,player_id"  # matches PK
+            on_conflict="tx_id,player_id"  # matches PK
         ).execute()
 
 def main():
@@ -324,13 +295,14 @@ def main():
     upsert_managers(sb, lg)
     
     # players next (FK target for rosters and stats)
-    upsert_players(sb, lg)
+    upsert_players(sb, lg, sc)
 
     # played weeks
     settings = lg.settings()
-    start_w = int(1)
-    end_w   = int(1)
+    start_w = int(settings.get("start_week","1"))
+    end_w = int(settings.get("end_week", lg.end_week()))
     for w in range(start_w, end_w + 1):
+        print(f"Writing matchups, rosters, and player stats for week {w}")
         write_matchups(sb, lg, w)
         write_rosters(sb, lg, w)
         try:
@@ -341,6 +313,7 @@ def main():
         if player_ids:
             write_player_stats(sb, lg, player_ids, w)
 
+    print("Writing transactions")
     write_transactions(sb, lg)
     print("Backfill complete.")
 

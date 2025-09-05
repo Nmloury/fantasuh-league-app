@@ -1,7 +1,7 @@
 create table if not exists managers (
   manager_id text primary key,
   manager_name text not null,
-  team_name  text not null,
+  team_name  text not null
 );
 
 create table if not exists players (
@@ -31,18 +31,20 @@ create table if not exists rosters (
 );
 
 create table if not exists transactions (
+  tx_id text not null,
   ts timestamptz not null,
   type text not null,                  -- add, drop, trade, commish
+  status text not null,
   manager_id text references managers(manager_id),
   player_id text references players(player_id),
   faab_spent int,
-  details jsonb,
-  primary key (ts, type, manager_id, player_id)
+  primary key (tx_id, player_id)
 );
 
 create table if not exists player_stats (
   week int not null,
   player_id text not null references players(player_id),
+  total_points numeric not null default 0,
   pass_yds int not null default 0,
   pass_td int not null default 0,
   pass_int int not null default 0,

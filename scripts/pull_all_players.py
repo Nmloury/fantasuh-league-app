@@ -13,19 +13,23 @@ start = 0
 page = 25
 rows = []
 
-while True:
-    # All players in league context (omit status); or use status="T,FA,W,K"
-    data = yh.get_players_raw(league_key, start=start, status="T")['fantasy_content']['league'][1]['players']
-    for player_key, player_data in data.items():
-        if player_key == 'count':
-            continue
-        player_dict = ChainMap(*[obj for obj in player_data['player'][0] if isinstance(obj, dict)])
-        rows.append({
-            "player_id": player_dict["player_id"],
-            "name": player_dict["name"]["full"],
-            "pos_type": player_dict["position_type"],
-            "eligible_positions": player_dict["eligible_positions"]
-        })
-    print(f"Added {len(rows)} players")
-    start += page
 
+for player_status in ["T", "FA", "W", "K"]:
+    print(f"Pulling {player_status} players")
+    while True:
+        # All players in league context (omit status); or use status="T,FA,W,K"
+        data = yh.get_players_raw(league_key, start=start, status=player_status)['fantasy_content']['league'][1]['players']
+        if not data:
+            break
+        for player_key, player_data in data.items():
+            if player_key == 'count':
+                continue
+            player_dict = ChainMap(*[obj for obj in player_data['player'][0] if isinstance(obj, dict)])
+            rows.append({
+                "player_id": player_dict["player_id"],
+                "name": player_dict["name"]["full"],
+                "pos_type": player_dict["position_type"],
+                "eligible_positions": [pos_dict['position'] for pos_dict in player_dict["eligible_positions"]]
+            })
+        start += page
+    print(f"Added {len(rows)} players")
