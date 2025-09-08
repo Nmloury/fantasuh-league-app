@@ -3,9 +3,11 @@ from math import sqrt, erf
 
 def _phi(z): return 0.5*(1+erf(z/np.sqrt(2)))
 
-def compute_expected_wins(sb):
+def compute_expected_wins(sb, max_week=14):
     mts = sb.table("matchups").select("week,team_a,team_b,score_a,score_b").order("week").execute().data
     if not mts: return
+    # Filter to only include regular season weeks
+    mts = [row for row in mts if row["week"] <= max_week]
     # history of totals per team
     totals = {}
     for row in mts:

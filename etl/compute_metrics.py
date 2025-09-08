@@ -9,9 +9,12 @@ from app.lib.faab_roi import compute_faab_roi
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
-# compute_lineup_efficiency(sb)
-# compute_expected_wins(sb)
+print("Computing lineup efficiency")    
+compute_lineup_efficiency(sb)
+print("Computing expected wins")
+compute_expected_wins(sb)
+print("Computing FAAB ROI")
 compute_faab_roi(sb)
-# # optional now; will need schedule data for in-season sims
+# TODO: uncomment this when we have the schedule data
 # simulate_playoff_odds(sb, n_sims=20000)
 print("Derived metrics computed.")
