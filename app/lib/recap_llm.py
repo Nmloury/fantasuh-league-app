@@ -39,15 +39,21 @@ def generate_recap(facts: Dict) -> RecapOut:
     client = _client()
     model = os.getenv("OPENAI_MODEL_RECAP", "gpt-5-mini-2025-08-07")
 
-    resp = client.chat.completions.create(
-        model=model,
-        temperature=0.3,
-        response_format={"type": "json_object"},  # enforce JSON
-        messages=[
+    # Some models (like gpt-5-mini) only support default temperature
+    model_params = {
+        "model": model,
+        "response_format": {"type": "json_object"},  # enforce JSON
+        "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": json.dumps(facts)},
         ],
-    )
+    }
+    
+    # Only add temperature if it's not a model that requires default temperature
+    if not model.startswith("gpt-5-mini"):
+        model_params["temperature"] = 0.3
+    
+    resp = client.chat.completions.create(**model_params)
     raw = resp.choices[0].message.content or "{}"
 
     try:

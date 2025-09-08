@@ -50,7 +50,8 @@ st.subheader("Database snapshot")
 
 cols = st.columns(6)
 tables = ["managers", "players", "matchups", "rosters", "transactions", "player_stats"]
-for c, t in zip(cols + st.columns(max(0, len(tables) - len(cols))), tables):
+additional_cols = st.columns(len(tables) - len(cols)) if len(tables) > len(cols) else []
+for c, t in zip(cols + additional_cols, tables):
     with c:
         st.metric(t, f"{table_count(t):,}")
 
@@ -74,7 +75,7 @@ week = st.number_input("Week", min_value=1, max_value=18, value=1, step=1)
 
 facts = None
 try:
-    from app.lib.facts import build_facts
+    from lib.facts import build_facts
     facts = build_facts(sb, int(week))
     st.code(json.dumps(facts, indent=2), language="json")
 except Exception as e:
@@ -85,7 +86,7 @@ st.subheader("Recap Generation (optional quick check)")
 gen = st.button("Generate Recap (if recap_llm.py present)")
 if gen:
     try:
-        from app.lib.recap_llm import generate_recap
+        from lib.recap_llm import generate_recap
         if not OPENAI_KEY_SET:
             st.error("OPENAI_API_KEY missing; set it in .env to generate a recap.")
         elif facts is None:

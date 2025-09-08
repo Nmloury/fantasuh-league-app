@@ -7,8 +7,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
 
-from app.lib.facts import build_facts
-from app.lib.recap_llm import generate_recap
+from lib.facts import build_facts
+from lib.recap_llm import generate_recap
 
 load_dotenv()
 
