@@ -14,3 +14,9 @@ wheels/
 
 # OAuth
 oauth2.json
+
+# vscode
+.vscode
+
+# cursor
+.cursorrules

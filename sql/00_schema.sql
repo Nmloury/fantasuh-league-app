@@ -101,16 +101,18 @@ create table if not exists expected_wins (
   primary key (week, manager_id)
 );
 
--- FAAB ROI (rest-of-season realized points from STARTS only)
+-- FAAB ROI (rest-of-season realized points from STARTS and ALL weeks)
 create table if not exists faab_roi (
   tx_id text not null,
   manager_id text not null references managers(manager_id),
   player_id text not null references players(player_id),
   start_week int not null,
   end_week int not null,
-  points_added numeric not null,
+  pts_all numeric not null,
+  pts_starting numeric not null,
   faab_spent int not null,
-  dollars_per_point numeric,
+  pts_per_dollar_all numeric,
+  pts_per_dollar_starting numeric,
   primary key (tx_id, player_id)
 );
 
