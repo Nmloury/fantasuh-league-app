@@ -1,5 +1,8 @@
 import os
+from dotenv import load_dotenv
 from supabase import create_client, Client
+
+load_dotenv()
 
 def supa() -> Client:
     url = os.environ["SUPABASE_URL"]
