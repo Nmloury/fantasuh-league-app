@@ -58,16 +58,16 @@ jobs:
 
       # --- Run ETL (Yahoo → Supabase) ---
       - name: ETL backfill/refresh
-        run: uv run python etl/yahoo_backfill.py
+        run: uv run python -m etl.yahoo_backfill
 
       # --- Compute derived metrics ---
       - name: Compute metrics
-        run: uv run python etl/compute_metrics.py
+        run: uv run python -m etl.compute_metrics
 
       # --- Sanity: print record counts (helps debugging) ---
       - name: Sanity summary
         run: |
-          python - <<'PY'
+          uv run python <<'PY'
           import os
           from supabase import create_client
           url, key = os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
