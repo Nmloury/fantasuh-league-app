@@ -1,0 +1,82 @@
+name: nightly-refresh
+on:
+  schedule:
+    # 15:30 UTC daily (≈ 08:30 PT during DST; ≈ 07:30 PT in winter)
+    - cron: "30 15 * * *"
+  workflow_dispatch: {}
+
+# Prevent overlapping runs
+concurrency:
+  group: nightly-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Common env for your ETL/compute scripts
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      YAHOO_LEAGUE_YEAR: "2024"
+      YAHOO_LEAGUE_ID_SHORT: "311671"
+      YAHOO_OAUTH_JSON_PATH: "./oauth2.json"
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # --- Install uv and Python ---
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install Python 3.11
+        run: uv python install 3.11
+
+      # --- Cache dependencies (uses requirements.txt you exported with uv) ---
+      - name: Cache uv packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+
+      - name: Install dependencies
+        run: uv pip install -r requirements.txt
+
+      # --- Materialize Yahoo oauth2.json from secret ---
+      - name: Write oauth2.json
+        run: 'printf "%s" "${OAUTH2_JSON}" > oauth2.json'
+        env:
+          OAUTH2_JSON: ${{ secrets.YAHOO_OAUTH2_JSON }}
+
+      # --- Run ETL (Yahoo → Supabase) ---
+      - name: ETL backfill/refresh
+        run: uv run python etl/yahoo_backfill.py
+
+      # --- Compute derived metrics ---
+      - name: Compute metrics
+        run: uv run python etl/compute_metrics.py
+
+      # --- Sanity: print record counts (helps debugging) ---
+      - name: Sanity summary
+        run: |
+          python - <<'PY'
+          import os
+          from supabase import create_client
+          url, key = os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+          sb = create_client(url, key)
+          def count(table):
+              r = sb.table(table).select("*", count="exact").limit(1).execute()
+              return r.count or 0
+          tables = ["managers","players","matchups","rosters","transactions","player_stats",
+                    "lineup_efficiency","expected_wins","faab_roi"]
+          for t in tables:
+              try:
+                  print(f"{t}: {count(t)}")
+              except Exception as e:
+                  print(f"{t}: (error) {e}")
+          PY

@@ -21,11 +21,13 @@ create table if not exists matchups (
   primary key (week, matchup_id)
 );
 
+
+
 create table if not exists rosters (
   week int not null,
   manager_id text not null references managers(manager_id),
   player_id text not null references players(player_id),
-  slot text not null,                  -- QB,RB,WR,TE,FLEX,SFLEX,DST,K,BN,IR
+  slot text not null,                  -- QB,RB,WR,TE,W/R/T,Q/W/R/T,DEF,K,BN,IR
   started boolean not null default false,
   primary key (week, manager_id, player_id)
 );
