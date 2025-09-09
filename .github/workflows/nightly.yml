@@ -43,9 +43,12 @@ jobs:
         with:
           path: ~/.cache/uv
           key: ${{ runner.os }}-uv-${{ hashFiles('**/requirements.txt') }}
+      
+      - name: Create venv
+        run: uv venv .venv
 
       - name: Install dependencies
-        run: uv pip install -r requirements.txt --system
+        run: uv pip install -r requirements.txt
 
       # --- Materialize Yahoo oauth2.json from secret ---
       - name: Write oauth2.json
