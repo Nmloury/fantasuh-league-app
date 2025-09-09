@@ -1,0 +1,26 @@
+[server]
+# Always run in headless mode (don’t try to open a browser)
+headless = true
+
+# Bind to all interfaces (important if you run in Docker/Render)
+address = "0.0.0.0"
+
+# Default port (can be overridden with $PORT in many hosts)
+port = 8501
+
+# Allow app to work behind proxies
+enableCORS = false
+enableXsrfProtection = true
+
+[browser]
+# Default page that opens in local dev
+serverAddress = "localhost"
+gatherUsageStats = false  # turn off telemetry if you prefer
+
+[theme]
+base = "light"  # or "dark"
+primaryColor = "#4CAF50"
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F2F6"
+textColor = "#000000"
+font = "sans serif"
