@@ -240,7 +240,8 @@ else:
                 baseline='middle',
                 dx=8,
                 fontSize=12,
-                fontWeight='bold'
+                fontWeight='bold',
+                color='white'  # Match dark theme text color
             ).encode(
                 x=alt.X('FAAB Spent ($):Q', title='Total FAAB Spent ($)'),
                 y=alt.Y('Points per $:Q', title='Points per $'),
@@ -294,7 +295,8 @@ else:
                 baseline='middle',
                 dx=8,
                 fontSize=12,
-                fontWeight='bold'
+                fontWeight='bold',
+                color='white'  # Match dark theme text color
             ).encode(
                 x=alt.X('FAAB Spent ($):Q', title='Total FAAB Spent ($)'),
                 y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),

@@ -157,7 +157,8 @@ labels = alt.Chart(chart_data).mark_text(
     baseline='middle',
     dx=8,
     fontSize=12,
-    fontWeight='bold'
+    fontWeight='bold',
+    color='white'  # Match dark theme text color
 ).encode(
     x=alt.X('Expected Wins:Q', title='Expected Wins', scale=alt.Scale(zero=False)),
     y=alt.Y('Actual Wins:Q', title='Actual Wins', scale=alt.Scale(zero=False)),
