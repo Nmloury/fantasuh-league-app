@@ -1,4 +1,4 @@
-import os, math
+import os, math, time
 from datetime import datetime
 from typing import Dict, Any, List
 from collections import ChainMap
@@ -19,16 +19,23 @@ def chunked(seq, n=500):
 
 # ---------- upsert helpers ----------
 def upsert_managers(sb, lg):
-    teams = lg.teams()  # { team_key: {...} }
-    rows = []
-    for team_key, t in teams.items():
-        manager_name = t["managers"][0]["manager"]["nickname"]
-        rows.append({
-            "manager_id": team_key, 
-            "team_name": t["name"], 
-            "manager_name": manager_name
-        })
-    sb.table("managers").upsert(rows, on_conflict="manager_id").execute()
+    try:
+        print("Fetching team/manager information...")
+        time.sleep(0.5)  # Rate limiting
+        teams = lg.teams()  # { team_key: {...} }
+        rows = []
+        for team_key, t in teams.items():
+            manager_name = t["managers"][0]["manager"]["nickname"]
+            rows.append({
+                "manager_id": team_key, 
+                "team_name": t["name"], 
+                "manager_name": manager_name
+            })
+        sb.table("managers").upsert(rows, on_conflict="manager_id").execute()
+        print(f"Upserted {len(rows)} managers")
+    except Exception as e:
+        print(f"Error fetching managers: {e}")
+        raise
 
 def upsert_players(sb, lg, sc):
     # This gets taken players (T), free agents (FA), waivers (W), and keepers (K)
@@ -45,21 +52,26 @@ def upsert_players(sb, lg, sc):
         print(f"Pulling {player_status} players")
         start = 0  # Reset start for each status
         while True:
-            # Get players for this status
-            data = yh.get_players_raw(league_key, start=start, status=player_status)['fantasy_content']['league'][1]['players']
-            if not data:
+            try:
+                time.sleep(0.2)  # Rate limiting between requests
+                # Get players for this status
+                data = yh.get_players_raw(league_key, start=start, status=player_status)['fantasy_content']['league'][1]['players']
+                if not data:
+                    break
+                for player_key, player_data in data.items():
+                    if player_key == 'count':
+                        continue
+                    player_dict = ChainMap(*[obj for obj in player_data['player'][0] if isinstance(obj, dict)])
+                    rows.append({
+                        "player_id": str(player_dict["player_id"]),
+                        "name": player_dict["name"]["full"],
+                        "pos_type": player_dict["position_type"],
+                        "eligible_positions": [pos_dict['position'] for pos_dict in player_dict["eligible_positions"]]
+                    })
+                start += page
+            except Exception as e:
+                print(f"Error fetching {player_status} players at start={start}: {e}")
                 break
-            for player_key, player_data in data.items():
-                if player_key == 'count':
-                    continue
-                player_dict = ChainMap(*[obj for obj in player_data['player'][0] if isinstance(obj, dict)])
-                rows.append({
-                    "player_id": str(player_dict["player_id"]),
-                    "name": player_dict["name"]["full"],
-                    "pos_type": player_dict["position_type"],
-                    "eligible_positions": [pos_dict['position'] for pos_dict in player_dict["eligible_positions"]]
-                })
-            start += page
     
     print(f"Added {len(rows)} total players")
     
@@ -68,8 +80,13 @@ def upsert_players(sb, lg, sc):
         sb.table("players").upsert(part, on_conflict="player_id").execute()
 
 def write_matchups(sb, lg, week: int):
-    # Get matchups from the nested JSON structure
-    matchups = lg.matchups(week=week)['fantasy_content']['league'][1]['scoreboard']['0']['matchups']
+    try:
+        # Get matchups from the nested JSON structure
+        matchups = lg.matchups(week=week)['fantasy_content']['league'][1]['scoreboard']['0']['matchups']
+    except Exception as e:
+        print(f"Warning: Could not fetch matchups for week {week}: {e}")
+        return
+    
     rows = []
     
     for matchup_key, matchup_data in matchups.items():
@@ -116,21 +133,25 @@ def write_matchups(sb, lg, week: int):
         sb.table("matchups").upsert(part, on_conflict="week,matchup_id").execute()
 
 def write_rosters(sb, lg, week: int):
-    teams = lg.teams().keys()
-    roster_rows = []
-    for team_key in teams:
-        tm = lg.to_team(team_key)
-        r = tm.roster(week=week)  # list of players w/ selected_position etc.
-        for ply in r:
-            roster_rows.append({
-                "week": week, 
-                "manager_id": team_key, 
-                "player_id": str(ply["player_id"]),
-                "slot": ply["selected_position"],
-                "started": ply["selected_position"] not in ("BN", "IR")
-            })
-    for part in chunked(roster_rows, 500):
-        sb.table("rosters").upsert(part, on_conflict="week,manager_id,player_id").execute()
+    try:
+        teams = lg.teams().keys()
+        roster_rows = []
+        for team_key in teams:
+            tm = lg.to_team(team_key)
+            r = tm.roster(week=week)  # list of players w/ selected_position etc.
+            for ply in r:
+                roster_rows.append({
+                    "week": week, 
+                    "manager_id": team_key, 
+                    "player_id": str(ply["player_id"]),
+                    "slot": ply["selected_position"],
+                    "started": ply["selected_position"] not in ("BN", "IR")
+                })
+        for part in chunked(roster_rows, 500):
+            sb.table("rosters").upsert(part, on_conflict="week,manager_id,player_id").execute()
+    except Exception as e:
+        print(f"Warning: Could not fetch rosters for week {week}: {e}")
+        return
 
 def write_player_stats(sb, lg, player_ids: List[str], week: int):
     """Write player stats to database using new Yahoo API JSON format."""
@@ -287,9 +308,32 @@ def write_transactions(sb, lg):
         ).execute()
 
 def main():
+    print("Starting Yahoo backfill process...")
+    
+    print("Step 1: Initializing Supabase client...")
     sb = supa()
+    
+    print("Step 2: Getting Yahoo session...")
     sc = get_session()
-    lg = get_league(sc, YEAR, LEAGUE_ID_SHORT)
+    print("Session created successfully")
+    
+    print("Step 3: Getting league information...")
+    # Retry mechanism for league creation
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            if attempt > 0:
+                print(f"Retry attempt {attempt + 1}/{max_retries}")
+                time.sleep(2 * attempt)  # Exponential backoff
+            lg = get_league(sc, YEAR, LEAGUE_ID_SHORT)
+            print("League object created successfully")
+            break
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                print("All retry attempts failed. Exiting.")
+                raise
+            print("Retrying...")
 
     # managers first (FK target)
     upsert_managers(sb, lg)
@@ -297,13 +341,26 @@ def main():
     # players next (FK target for rosters and stats)
     upsert_players(sb, lg, sc)
 
-    # played weeks
+    # played weeks - be more conservative about which weeks to process
     settings = lg.settings()
     start_w = int(settings.get("start_week","1"))
-    end_w = int(settings.get("end_week", lg.end_week()))
+    
+    # Try to get the current week from the league, but be conservative
+    try:
+        current_week = lg.current_week()
+        # Only process up to the current week to avoid future weeks
+        end_w = min(current_week, int(settings.get("end_week", current_week)))
+    except Exception:
+        # Fallback: use a conservative end week (typically regular season is 14 weeks)
+        end_w = min(14, int(settings.get("end_week", 14)))
+    
+    print(f"Processing weeks {start_w} through {end_w}")
+    
     for w in range(start_w, end_w + 1):
         print(f"Writing matchups, rosters, and player stats for week {w}")
+        time.sleep(0.5)  # Rate limiting between weeks
         write_matchups(sb, lg, w)
+        time.sleep(0.5)  # Rate limiting between API calls
         write_rosters(sb, lg, w)
         try:
             res = sb.table("players").select("player_id").execute()
@@ -311,6 +368,7 @@ def main():
         except Exception:
             player_ids = []
         if player_ids:
+            time.sleep(0.5)  # Rate limiting before player stats
             write_player_stats(sb, lg, player_ids, w)
 
     print("Writing transactions")
