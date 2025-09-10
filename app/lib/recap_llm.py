@@ -1,12 +1,15 @@
 # app/lib/recap_llm.py
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-from typing import Dict, List, TypedDict
+from typing import Dict, List, Optional, TypedDict
 
 from dotenv import load_dotenv
 from openai import OpenAI
+
+from .supa import supa
 
 load_dotenv()
 
@@ -17,12 +20,13 @@ class RecapOut(TypedDict, total=False):
     sections: List[Dict]   # [{"title":"...", "body":"..."}]
 
 SYSTEM_PROMPT = """You are 'League Scribe'. Use ONLY the JSON facts the user provides.
-Do NOT invent stats, injuries, or rumors. Style=trash-talk, R-rated (no slurs).
+Do NOT invent stats, injuries, or rumors. Style=trash-talk with football references, R-rated (no slurs).
 Output must be valid JSON with fields:
 - title: string
 - headlines: array of 3–5 items, each: {"text": "..."} (short bullet-worthy lines)
 - sections: array of 2–3 items, each: {"title": "...", "body": "..."} (Markdown allowed)
-Max 450 words total across all fields.
+Try to include different or complementary information in the sections from what is covered in the headlines.
+Max 500 words total across all fields.
 """
 
 def _client() -> OpenAI:
@@ -85,3 +89,78 @@ def generate_recap(facts: Dict) -> RecapOut:
             norm_sections.append({"title": "Section", "body": str(s)})
 
     return {"title": title, "headlines": norm_headlines, "sections": norm_sections}
+
+
+def _generate_prompt_hash(facts: Dict) -> str:
+    """Generate a hash of the facts to detect when inputs change."""
+    facts_str = json.dumps(facts, sort_keys=True)
+    return hashlib.md5(facts_str.encode()).hexdigest()
+
+
+def _recap_to_markdown(recap: RecapOut) -> str:
+    """Convert recap dict to markdown format for storage."""
+    lines = [f"# {recap['title']}", ""]
+    
+    if recap.get("headlines"):
+        for h in recap["headlines"]:
+            lines.append(f"- {h.get('text', '')}")
+        lines.append("")
+    
+    if recap.get("sections"):
+        for s in recap["sections"]:
+            lines.append(f"## {s.get('title', '')}")
+            lines.append(s.get("body", ""))
+            lines.append("")
+    
+    return "\n".join(lines)
+
+
+def insert_recap(league_id: str, week: int, facts: Dict, model: Optional[str] = None) -> Optional[str]:
+    """
+    Generate and insert a weekly recap into the recaps table.
+    
+    Args:
+        league_id: The league identifier
+        week: The week number
+        facts: The facts dict to generate recap from
+        model: Optional model override (defaults to env var)
+    
+    Returns:
+        The generated recap ID if successful, None if recap already exists
+    """
+    sb = supa()
+    
+    # Check if recap already exists for this week
+    existing = sb.table("recaps").select("id").eq("league_id", league_id).eq("week", week).execute().data
+    if existing:
+        return None  # Recap already exists
+    
+    # Generate the recap
+    recap = generate_recap(facts)
+    
+    # Convert to markdown
+    content_md = _recap_to_markdown(recap)
+    
+    # Generate prompt hash
+    prompt_hash = _generate_prompt_hash(facts)
+    
+    # Get model name
+    if model is None:
+        model = os.getenv("OPENAI_MODEL_RECAP", "gpt-5-mini-2025-08-07")
+    
+    # Insert into database
+    result = sb.table("recaps").insert({
+        "league_id": league_id,
+        "week": week,
+        "title": recap["title"],
+        "content_md": content_md,
+        "model": model,
+        "prompt_hash": prompt_hash,
+        "inputs_json": facts
+    }).execute()
+    
+    if result.data:
+        return result.data[0]["id"]
+    return None
+
+
