@@ -18,8 +18,8 @@ jobs:
       # Common env for your ETL/compute scripts
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      YAHOO_LEAGUE_YEAR: "2024"
-      YAHOO_LEAGUE_ID_SHORT: "311671"
+      YAHOO_LEAGUE_YEAR: "2025"
+      YAHOO_LEAGUE_ID_SHORT: "576892"
       YAHOO_OAUTH_JSON_PATH: "./oauth2.json"
       PYTHONUNBUFFERED: "1"
 
