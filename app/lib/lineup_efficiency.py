@@ -5,9 +5,11 @@ import pulp
 # TODO: change this to the superflex slots when updating for the 2025 season
 STARTING_SLOTS = ["QB","RB","RB","WR","WR","TE","W/R/T", "Q/W/R/T", "DEF","K"]
 
-def compute_lineup_efficiency(sb):
+def compute_lineup_efficiency(sb, max_week=14):
     # weeks present
     weeks = sorted({r["week"] for r in sb.table("rosters").select("week").execute().data})
+    # Filter to only include weeks up to max_week
+    weeks = [w for w in weeks if w <= max_week]
     # managers
     managers = [m["manager_id"] for m in sb.table("managers").select("manager_id").execute().data]
 
