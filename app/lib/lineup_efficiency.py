@@ -3,7 +3,7 @@ import os, itertools
 import pulp
 
 # TODO: change this to the superflex slots when updating for the 2025 season
-STARTING_SLOTS = ["QB","RB","RB","WR","WR","TE","W/R/T", "W/R/T", "DEF","K"]
+STARTING_SLOTS = ["QB","RB","RB","WR","WR","TE","W/R/T", "Q/W/R/T", "DEF","K"]
 
 def compute_lineup_efficiency(sb):
     # weeks present

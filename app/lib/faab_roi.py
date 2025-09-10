@@ -1,4 +1,4 @@
-START_SLOTS = {"QB","RB","WR","TE","W/R/T","DST","K"}
+START_SLOTS = {"QB","RB","WR","TE","W/R/T","Q/W/R/T","DST","K"}
 
 def compute_faab_roi(sb):
     # candidate adds
