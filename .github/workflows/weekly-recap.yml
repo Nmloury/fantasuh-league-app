@@ -2,8 +2,8 @@
 name: weekly-recap
 on:
   schedule:
-    # Run every Tuesday at 9:00 AM UTC (≈ 1:00 AM PT during DST; ≈ 12:00 AM PT in winter)
-    - cron: "0 9 * * 2"
+    # Run every Tuesday at 13:00 UTC (≈ 06:00 AM PT during DST; ≈ 05:00 AM PT in winter)
+    - cron: "0 13 * * 2"
   workflow_dispatch: {}
 
 # Prevent overlapping runs

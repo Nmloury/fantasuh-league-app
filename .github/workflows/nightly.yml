@@ -1,8 +1,8 @@
 name: nightly-refresh
 on:
   schedule:
-    # 15:30 UTC daily (≈ 08:30 PT during DST; ≈ 07:30 PT in winter)
-    - cron: "30 15 * * *"
+    # 12:00 UTC daily (≈ 05:00 PT during DST; ≈ 04:00 PT in winter)
+    - cron: "0 12 * * *"
   workflow_dispatch: {}
 
 # Prevent overlapping runs
