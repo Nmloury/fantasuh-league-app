@@ -18,9 +18,5 @@ serverAddress = "localhost"
 gatherUsageStats = false  # turn off telemetry if you prefer
 
 [theme]
-base = "light"  # or "dark"
-primaryColor = "#4CAF50"
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F0F2F6"
-textColor = "#000000"
+base = "dark"
 font = "sans serif"
