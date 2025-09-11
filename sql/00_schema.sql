@@ -11,6 +11,13 @@ create table if not exists players (
   eligible_positions text[] not null
 );
 
+create table if not exists draft_picks (
+  manager_id text not null references managers(manager_id),
+  player_id text not null references players(player_id),
+  cost int not null,
+  primary key (manager_id, player_id)
+);
+
 create table if not exists matchups (
   week int not null,
   matchup_id text not null,
@@ -126,11 +133,16 @@ create table if not exists schedule (
   primary key (week, team_a, team_b)
 );
 
--- helpful indexes
-create index if not exists rosters_manager_week on rosters(manager_id, week);
-create index if not exists rosters_player_week on rosters(player_id, week);
-create index if not exists matchups_team_a_week on matchups(team_a, week);
-create index if not exists matchups_team_b_week on matchups(team_b, week);
-create index if not exists transactions_mgr_ts on transactions(manager_id, ts);
-create index if not exists transactions_faab_add on transactions(type, faab_spent) where type='add' and faab_spent is not null;
-
+-- Recaps (used for the recap generation)
+create table if not exists recaps (
+  id            uuid primary key default gen_random_uuid(),
+  league_id     text not null,
+  week          int  not null,
+  title         text,
+  content_md    text not null,         -- markdown you render in Streamlit
+  model         text not null,         -- e.g., 'gpt-5-mini-2025-08-07'
+  prompt_hash   text,                  -- to detect prompt changes
+  inputs_json   jsonb,                 -- light context (standings, big moves, etc.)
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
