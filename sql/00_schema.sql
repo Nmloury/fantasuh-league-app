@@ -125,6 +125,18 @@ create table if not exists faab_roi (
   primary key (tx_id, player_id)
 );
 
+-- Draft ROI (rest-of-season realized points from STARTS and ALL weeks)
+create table if not exists draft_roi (
+  manager_id text not null references managers(manager_id),
+  player_id text not null references players(player_id),
+  draft_cost int not null,                    -- cost from draft_picks table
+  pts_all numeric not null,                   -- total points while on roster
+  pts_starting numeric not null,              -- total points when in starting lineup
+  pts_per_dollar_all numeric,                 -- pts_all / draft_cost
+  pts_per_dollar_starting numeric,            -- pts_starting / draft_cost
+  primary key (manager_id, player_id)
+);
+
 -- Schedule (needed for playoff odds during active season)
 create table if not exists schedule (
   week int not null,
