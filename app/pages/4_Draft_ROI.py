@@ -32,13 +32,13 @@ else:
 
     # Prepare display columns
     display_columns = ["team_name", "player", "draft_cost", "pts_all", "pts_per_dollar_all", "pts_starting", "pts_per_dollar_starting"]
-    column_names = ["Team", "Player", "Draft Cost (Pick)", "Total Points", "Points per $", "Starting Points", "Starting Points per $"]
+    column_names = ["Team", "Player", "Draft Cost", "Total Points", "Points per $", "Starting Points", "Starting Points per $"]
     
     display_df = df[display_columns].copy()
     display_df.columns = column_names
     
     # Sort by draft cost (highest first)
-    display_df = display_df.sort_values("Draft Cost (Pick)", ascending=False)
+    display_df = display_df.sort_values("Draft Cost", ascending=False)
     
     # === FILTERS SECTION ===
     st.subheader("🔍 Filters")
@@ -69,13 +69,13 @@ else:
     
     with col2:
         # Draft Cost range filter
-        cost_min, cost_max = int(display_df['Draft Cost (Pick)'].min()), int(display_df['Draft Cost (Pick)'].max())
+        cost_min, cost_max = int(display_df['Draft Cost'].min()), int(display_df['Draft Cost'].max())
         cost_range = st.slider(
-            "Draft Cost (Pick)", 
+            "Draft Cost", 
             min_value=cost_min, 
             max_value=cost_max, 
             value=(cost_min, cost_max),
-            help="Filter by draft pick number"
+            help="Filter by draft cost"
         )
         
         # Points per $ range filter
@@ -123,8 +123,8 @@ else:
     
     # Draft cost range filter
     filtered_df = filtered_df[
-        (filtered_df['Draft Cost (Pick)'] >= cost_range[0]) & 
-        (filtered_df['Draft Cost (Pick)'] <= cost_range[1])
+        (filtered_df['Draft Cost'] >= cost_range[0]) & 
+        (filtered_df['Draft Cost'] <= cost_range[1])
     ]
     
     # Points per $ range filter
@@ -149,11 +149,11 @@ else:
     column_config = {
         "Team": st.column_config.TextColumn("Team", width="medium"),
         "Player": st.column_config.TextColumn("Player", width="medium"),
-        "Draft Cost (Pick)": st.column_config.NumberColumn("Draft Cost (Pick)", width="small", help="Draft pick number used to acquire this player"),
+        "Draft Cost": st.column_config.NumberColumn("Draft Cost", width="small", help="Draft cost used to acquire this player", format="$%d"),
         "Total Points": st.column_config.NumberColumn("Total Points", width="small", help="Total fantasy points scored while on roster"),
-        "Points per $": st.column_config.NumberColumn("Points per $", width="small", help="Fantasy points per draft pick spent"),
+        "Points per $": st.column_config.NumberColumn("Points per $", width="small", help="Fantasy points per draft cost spent"),
         "Starting Points": st.column_config.NumberColumn("Starting Points", width="small", help="Points scored when player was in starting lineup"),
-        "Starting Points per $": st.column_config.NumberColumn("Starting Points per $", width="small", help="Starting points per draft pick spent")
+        "Starting Points per $": st.column_config.NumberColumn("Starting Points per $", width="small", help="Starting points per draft cost spent")
     }
 
     # Display table
@@ -181,7 +181,7 @@ else:
     # Create second chart: Player-level starting points per $
     if not display_df.empty:
         starting_scatter = alt.Chart(display_df).mark_circle(size=80).encode(
-            x=alt.X('Draft Cost (Pick):Q', title='Draft Cost'),
+            x=alt.X('Draft Cost:Q', title='Draft Cost'),
             y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),
             tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Starting Points per $:Q', 'Starting Points:Q']
         ).properties(
