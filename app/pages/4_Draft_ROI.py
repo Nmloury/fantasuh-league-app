@@ -167,10 +167,10 @@ else:
     if not display_df.empty:
         scatter = alt.Chart(display_df).mark_circle(size=80, color='#4682B4').encode(
             x=alt.X('Draft Cost:Q', title='Draft Cost ($)'),
-            y=alt.Y('Points per $:Q', title='Points per $'),
+            y=alt.Y('Total Points:Q', title='Total Points'),
             tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Points per $:Q', 'Total Points:Q']
         ).properties(
-            title='Draft Investment vs ROI (Points per $)',
+            title='Draft Investment vs Total Points',
             height=400
         )
         
@@ -178,20 +178,20 @@ else:
     else:
         st.info("No player-level ROI data available for charting")
     
-    # Create second chart: Player-level starting points per $
+    # Create second chart: Player-level starting points
     if not display_df.empty:
         starting_scatter = alt.Chart(display_df).mark_circle(size=80).encode(
             x=alt.X('Draft Cost:Q', title='Draft Cost ($)'),
-            y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),
+            y=alt.Y('Starting Points:Q', title='Starting Points'),
             tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Starting Points per $:Q', 'Starting Points:Q']
         ).properties(
-            title='Draft Investment vs Starting ROI (Starting Points per $)',
+            title='Draft Investment vs Starting Points',
             height=400
         )
         
         st.altair_chart(starting_scatter, use_container_width=True)
     else:
-        st.info("No player-level starting points ROI data available for charting")
+        st.info("No player-level starting points data available for charting")
 
 # Detailed explanation
 with st.expander("📖 How Draft ROI Works"):
