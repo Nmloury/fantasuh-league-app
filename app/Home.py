@@ -226,6 +226,10 @@ with explore_col1:
     if st.button("💰 FAAB ROI", key="faab_link"):
         st.switch_page("pages/3_FAAB_ROI.py")
     st.caption("Free agent acquisition value")
+    
+    if st.button("🏈 Draft ROI", key="draft_link"):
+        st.switch_page("pages/4_Draft_ROI.py")
+    st.caption("Draft pick value analysis")
 
 with explore_col2:
     st.markdown("**📰 Content & Recaps**")
