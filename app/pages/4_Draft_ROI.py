@@ -163,94 +163,49 @@ else:
         column_config=column_config
     )
     
-    # Create scatter plot: Team-level Draft ROI (aggregated across all players)
-    # Aggregate by team: total draft investment vs total points per dollar
-    team_roi = display_df.groupby('Team').agg({
-        'Draft Cost (Pick)': 'sum',
-        'Total Points': 'sum'
-    }).reset_index()
-    team_roi['Points per $'] = (team_roi['Total Points'] / team_roi['Draft Cost (Pick)']).round(3)
-    team_roi = team_roi[team_roi['Draft Cost (Pick)'] > 0]  # Remove teams with no draft investment
-    
-    if not team_roi.empty:
-        scatter = alt.Chart(team_roi).mark_circle(size=120, color='#4682B4').encode(
-            x=alt.X('Draft Cost (Pick):Q', title='Total Draft Investment (Sum of Pick Numbers)'),
+    # Create scatter plot: Player-level Draft ROI
+    if not display_df.empty:
+        scatter = alt.Chart(display_df).mark_circle(size=80, color='#4682B4').encode(
+            x=alt.X('Draft Cost:Q', title='Draft Cost'),
             y=alt.Y('Points per $:Q', title='Points per $'),
-            tooltip=['Team:N', 'Draft Cost (Pick):Q', 'Points per $:Q', 'Total Points:Q']
+            tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Points per $:Q', 'Total Points:Q']
         ).properties(
-            title='Team Draft Investment vs ROI (Total Points)',
+            title='Draft Investment vs ROI (Total Points)',
             height=400
         )
         
-        # Add team name labels
-        labels = alt.Chart(team_roi).mark_text(
-            align='left',
-            baseline='middle',
-            dx=8,
-            fontSize=12,
-            fontWeight='bold',
-            color='white'  # Match dark theme text color
-        ).encode(
-            x=alt.X('Draft Cost (Pick):Q', title='Total Draft Investment (Sum of Pick Numbers)'),
-            y=alt.Y('Points per $:Q', title='Points per $'),
-            text='Team:N'
-        )
-        
-        st.altair_chart(scatter + labels, use_container_width=True)
+        st.altair_chart(scatter, use_container_width=True)
     else:
-        st.info("No team-level ROI data available for charting")
+        st.info("No player-level ROI data available for charting")
     
-    # Create second chart: Team-level starting points per $ (aggregated across all players)
-    # Aggregate by team: total draft investment vs total starting points per dollar
-    team_starting_roi = display_df.groupby('Team').agg({
-        'Draft Cost (Pick)': 'sum',
-        'Starting Points': 'sum'
-    }).reset_index()
-    team_starting_roi['Starting Points per $'] = (team_starting_roi['Starting Points'] / team_starting_roi['Draft Cost (Pick)']).round(3)
-    team_starting_roi = team_starting_roi[team_starting_roi['Draft Cost (Pick)'] > 0]  # Remove teams with no draft investment
-    
-    if not team_starting_roi.empty:
-        starting_scatter = alt.Chart(team_starting_roi).mark_circle(size=120).encode(
-            x=alt.X('Draft Cost (Pick):Q', title='Total Draft Investment (Sum of Pick Numbers)'),
+    # Create second chart: Player-level starting points per $
+    if not display_df.empty:
+        starting_scatter = alt.Chart(display_df).mark_circle(size=80).encode(
+            x=alt.X('Draft Cost (Pick):Q', title='Draft Cost'),
             y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),
-            tooltip=['Team:N', 'Draft Cost (Pick):Q', 'Starting Points per $:Q', 'Starting Points:Q']
+            tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Starting Points per $:Q', 'Starting Points:Q']
         ).properties(
-            title='Team Draft Investment vs Starting Points ROI',
+            title='Draft Investment vs Starting ROI',
             height=400
         )
         
-        # Add team name labels
-        starting_labels = alt.Chart(team_starting_roi).mark_text(
-            align='left',
-            baseline='middle',
-            dx=8,
-            fontSize=12,
-            fontWeight='bold',
-            color='white'  # Match dark theme text color
-        ).encode(
-            x=alt.X('Draft Cost (Pick):Q', title='Total Draft Investment (Sum of Pick Numbers)'),
-            y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),
-            text='Team:N'
-        )
-        
-        st.altair_chart(starting_scatter + starting_labels, use_container_width=True)
+        st.altair_chart(starting_scatter, use_container_width=True)
     else:
-        st.info("No team-level starting points ROI data available for charting")
+        st.info("No player-level starting points ROI data available for charting")
 
 # Detailed explanation
 with st.expander("📖 How Draft ROI Works"):
     st.markdown("""
     **Key Metrics:**
-    - **Draft Cost (Pick)**: Draft pick number used to acquire the player
+    - **Draft Cost**: Auction budget spent to acquire the player
     - **Total Points**: All fantasy points scored while on your roster
     - **Starting Points**: Points scored when player was in your starting lineup
-    - **Points per $**: Return on investment (points ÷ draft pick number)
+    - **Points per $**: Return on investment (points ÷ auction dollars spent)
     
     **What to Look For:**
-    - **High Points per $**: Great value draft picks (late round steals)
+    - **High Points per $**: Great value draft picks
     - **Low Points per $**: Early round picks that didn't pan out
     - **Starting vs Total Points**: Shows if you used the player effectively in your lineup
     
-    **Note**: This analysis only includes players acquired through the draft, not free agent pickups or trades.
-    Lower draft pick numbers (earlier picks) represent higher "cost" in this analysis.
+    **Note**: This analysis only includes the value players selected in the draft provided to the teams that drafted them.
     """)
