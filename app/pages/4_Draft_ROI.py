@@ -166,11 +166,11 @@ else:
     # Create scatter plot: Player-level Draft ROI
     if not display_df.empty:
         scatter = alt.Chart(display_df).mark_circle(size=80, color='#4682B4').encode(
-            x=alt.X('Draft Cost:Q', title='Draft Cost'),
+            x=alt.X('Draft Cost:Q', title='Draft Cost ($)'),
             y=alt.Y('Points per $:Q', title='Points per $'),
             tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Points per $:Q', 'Total Points:Q']
         ).properties(
-            title='Draft Investment vs ROI (Total Points)',
+            title='Draft Investment vs ROI (Points per $)',
             height=400
         )
         
@@ -181,11 +181,11 @@ else:
     # Create second chart: Player-level starting points per $
     if not display_df.empty:
         starting_scatter = alt.Chart(display_df).mark_circle(size=80).encode(
-            x=alt.X('Draft Cost:Q', title='Draft Cost'),
+            x=alt.X('Draft Cost:Q', title='Draft Cost ($)'),
             y=alt.Y('Starting Points per $:Q', title='Starting Points per $'),
             tooltip=['Team:N', 'Player:N', 'Draft Cost:Q', 'Starting Points per $:Q', 'Starting Points:Q']
         ).properties(
-            title='Draft Investment vs Starting ROI',
+            title='Draft Investment vs Starting ROI (Starting Points per $)',
             height=400
         )
         
