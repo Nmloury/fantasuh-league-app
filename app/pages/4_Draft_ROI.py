@@ -14,7 +14,7 @@ st.title("🏈 Draft ROI")
 # High-level description
 st.markdown("""
 **What this shows:** This analysis measures the return on investment (ROI) for your draft picks. 
-It shows how many fantasy points you got per draft pick spent on each player, helping you evaluate your draft strategy and player value.
+It shows how many fantasy points you got per auction dollar spent on each player, showing which players were great values and which were busts.
 """)
 
 rows = sb.table("draft_roi").select("*").execute().data
