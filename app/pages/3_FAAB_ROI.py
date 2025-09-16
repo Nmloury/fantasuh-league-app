@@ -5,7 +5,7 @@ import streamlit as st
 import altair as alt
 from dotenv import load_dotenv
 from supabase import create_client
-from app.lib.streamlit_utils import get_faab_roi_data, get_managers_data, get_players_data
+from lib.streamlit_utils import get_faab_roi_data, get_managers_data, get_players_data
 
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])

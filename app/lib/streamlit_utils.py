@@ -15,20 +15,20 @@ from typing import Optional, List, Dict, Any, Tuple
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_current_week(sb: Client) -> int:
+def get_current_week(_sb: Client) -> int:
     """Get the most recently completed week from the database.
     
     This value is updated by the ETL process (compute_metrics.py) which gets
     the authoritative current week from the Yahoo Fantasy API.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         int: The most recently completed week number
     """
     try:
-        result = sb.table("app_config").select("value").eq("key", "current_week").execute()
+        result = _sb.table("app_config").select("value").eq("key", "current_week").execute()
         if result.data:
             return int(result.data[0]["value"])
         else:
@@ -40,18 +40,18 @@ def get_current_week(sb: Client) -> int:
 
 
 @st.cache_data(show_spinner=False)
-def get_available_weeks(sb: Client, table_name: str = "matchups") -> List[int]:
+def get_available_weeks(_sb: Client, table_name: str = "matchups") -> List[int]:
     """Get all available weeks from a specific table.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         table_name: Name of the table to query for weeks
         
     Returns:
         List[int]: Sorted list of available weeks (most recent first)
     """
     try:
-        result = sb.table(table_name).select("week").order("week", desc=True).execute()
+        result = _sb.table(table_name).select("week").order("week", desc=True).execute()
         if result.data:
             # Get unique weeks and sort them
             weeks = sorted(set(row["week"] for row in result.data), reverse=True)
@@ -68,34 +68,34 @@ def get_available_weeks(sb: Client, table_name: str = "matchups") -> List[int]:
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_team_names(sb: Client) -> Dict[str, str]:
+def get_team_names(_sb: Client) -> Dict[str, str]:
     """Get mapping of manager_id to team_name.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         Dict[str, str]: Mapping of manager_id to team_name
     """
     try:
-        result = sb.table("managers").select("manager_id, team_name").execute()
+        result = _sb.table("managers").select("manager_id, team_name").execute()
         return {m["manager_id"]: m["team_name"] for m in result.data}
     except Exception:
         return {}
 
 
 @st.cache_data(show_spinner=False)
-def get_managers_data(sb: Client) -> List[Dict[str, Any]]:
+def get_managers_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get all manager data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: List of manager records
     """
     try:
-        result = sb.table("managers").select("manager_id, manager_name, team_name").execute()
+        result = _sb.table("managers").select("manager_id, manager_name, team_name").execute()
         return result.data
     except Exception:
         return []
@@ -106,52 +106,48 @@ def get_managers_data(sb: Client) -> List[Dict[str, Any]]:
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_latest_recap(sb: Client) -> Optional[Dict[str, Any]]:
-    """Get the most recent recap from the database.
-    
-    Args:
-        sb: Supabase client
-        
-    Returns:
-        Optional[Dict[str, Any]]: Most recent recap or None
-    """
-    try:
-        result = sb.table("recaps").select("*").order("week", desc=True).limit(1).execute()
-        return result.data[0] if result.data else None
-    except Exception:
-        return None
-
-
-@st.cache_data(show_spinner=False)
-def get_recap_for_week(sb: Client, week: int) -> Optional[Dict[str, Any]]:
+def get_recap_for_week(_sb: Client, week: int) -> Optional[Dict[str, Any]]:
     """Get the recap for a specific week.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         week: Week number
         
     Returns:
         Optional[Dict[str, Any]]: Recap for the specified week or None
     """
     try:
-        result = sb.table("recaps").select("*").eq("week", week).limit(1).execute()
+        result = _sb.table("recaps").select("*").eq("week", week).limit(1).execute()
         return result.data[0] if result.data else None
     except Exception:
         return None
 
 
 @st.cache_data(show_spinner=False)
-def get_available_recap_weeks(sb: Client) -> List[int]:
+def get_latest_recap(_sb: Client) -> Optional[Dict[str, Any]]:
+    """Get the most recent recap from the database.
+    
+    Args:
+        _sb: Supabase client
+        
+    Returns:
+        Optional[Dict[str, Any]]: Most recent recap or None
+    """
+    
+    return get_recap_for_week(_sb, get_current_week(_sb))
+
+@st.cache_data(show_spinner=False)
+def get_available_recap_weeks(_sb: Client) -> List[int]:
     """Get all weeks that have recaps available.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[int]: List of weeks with available recaps
     """
     try:
-        result = sb.table("recaps").select("week").order("week", desc=True).execute()
+        result = _sb.table("recaps").select("week").order("week", desc=True).execute()
         return [row["week"] for row in result.data] if result.data else []
     except Exception:
         return []
@@ -162,21 +158,21 @@ def get_available_recap_weeks(sb: Client) -> List[int]:
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_closest_matchup(sb: Client) -> Optional[Tuple[Dict[str, Any], int]]:
+def get_closest_matchup(_sb: Client) -> Optional[Tuple[Dict[str, Any], int]]:
     """Get the closest finished matchup from the last completed week.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         Optional[Tuple[Dict[str, Any], int]]: Tuple of (matchup_data, week) or None
     """
     try:
         # Get the most recent completed week from our stored value
-        week = get_current_week(sb)
+        week = get_current_week(_sb)
         
         # Get all matchups for that week with actual scores
-        matchups = sb.table("matchups").select("*").eq("week", week).not_.is_("score_a", "null").not_.is_("score_b", "null").or_("score_a.gt.0,score_b.gt.0").execute()
+        matchups = _sb.table("matchups").select("*").eq("week", week).not_.is_("score_a", "null").not_.is_("score_b", "null").or_("score_a.gt.0,score_b.gt.0").execute()
         
         if not matchups.data:
             return None
@@ -197,18 +193,18 @@ def get_closest_matchup(sb: Client) -> Optional[Tuple[Dict[str, Any], int]]:
 
 
 @st.cache_data(show_spinner=False)
-def get_matchups_for_week(sb: Client, week: int) -> List[Dict[str, Any]]:
+def get_matchups_for_week(_sb: Client, week: int) -> List[Dict[str, Any]]:
     """Get all matchups for a specific week.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         week: Week number
         
     Returns:
         List[Dict[str, Any]]: List of matchups for the specified week
     """
     try:
-        result = sb.table("matchups").select("*").eq("week", week).execute()
+        result = _sb.table("matchups").select("*").eq("week", week).execute()
         return result.data
     except Exception:
         return []
@@ -219,24 +215,24 @@ def get_matchups_for_week(sb: Client, week: int) -> List[Dict[str, Any]]:
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_standings(sb: Client) -> List[Dict[str, Any]]:
+def get_standings(_sb: Client) -> List[Dict[str, Any]]:
     """Get current standings with team names for the last completed week.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: List of standings records with team names, wins, losses, and streaks
     """
     try:
         # Get the most recent completed week from our stored value
-        week = get_current_week(sb)
+        week = get_current_week(_sb)
         
         # Get standings for that week
-        standings = sb.table("v_standings").select("manager_id, cum_wins, cum_pf").eq("week", week).order("cum_wins", desc=True).order("cum_pf", desc=True).execute()
+        standings = _sb.table("v_standings").select("manager_id, cum_wins, cum_pf").eq("week", week).order("cum_wins", desc=True).order("cum_pf", desc=True).execute()
         
         # Get team names
-        team_names = get_team_names(sb)
+        team_names = get_team_names(_sb)
         
         # Calculate records and streaks
         results = []
@@ -246,7 +242,7 @@ def get_standings(sb: Client) -> List[Dict[str, Any]]:
             losses = week - wins
             
             # Get recent results for streak calculation (only up to the most recent completed week)
-            recent_scores = sb.table("v_team_week_scores").select("win").eq("manager_id", manager_id).gte("week", max(1, week-4)).lte("week", week).order("week", desc=True).execute()
+            recent_scores = _sb.table("v_team_week_scores").select("win").eq("manager_id", manager_id).gte("week", max(1, week-4)).lte("week", week).order("week", desc=True).execute()
             
             streak = "—"
             if recent_scores.data:
@@ -284,102 +280,102 @@ def get_standings(sb: Client) -> List[Dict[str, Any]]:
 # =============================================================================
 
 @st.cache_data(show_spinner=False)
-def get_expected_wins_data(sb: Client) -> List[Dict[str, Any]]:
+def get_expected_wins_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get expected wins data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: Expected wins data
     """
     try:
-        result = sb.table("expected_wins").select("manager_id,cum_xw,week").execute()
+        result = _sb.table("expected_wins").select("manager_id,cum_xw,week").execute()
         return result.data
     except Exception:
         return []
 
 
 @st.cache_data(show_spinner=False)
-def get_actual_wins_data(sb: Client) -> List[Dict[str, Any]]:
+def get_actual_wins_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get actual wins data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: Actual wins data
     """
     try:
-        result = sb.table("v_actual_wins").select("manager_id,wins").execute()
+        result = _sb.table("v_actual_wins").select("manager_id,wins").execute()
         return result.data
     except Exception:
         return []
 
 
 @st.cache_data(show_spinner=False)
-def get_lineup_efficiency_data(sb: Client) -> List[Dict[str, Any]]:
+def get_lineup_efficiency_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get lineup efficiency data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: Lineup efficiency data
     """
     try:
-        result = sb.table("lineup_efficiency").select("*").execute()
+        result = _sb.table("lineup_efficiency").select("*").execute()
         return result.data
     except Exception:
         return []
 
 
 @st.cache_data(show_spinner=False)
-def get_faab_roi_data(sb: Client) -> List[Dict[str, Any]]:
+def get_faab_roi_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get FAAB ROI data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: FAAB ROI data
     """
     try:
-        result = sb.table("faab_roi").select("*").execute()
+        result = _sb.table("faab_roi").select("*").execute()
         return result.data
     except Exception:
         return []
 
 
 @st.cache_data(show_spinner=False)
-def get_draft_roi_data(sb: Client) -> List[Dict[str, Any]]:
+def get_draft_roi_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get draft ROI data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: Draft ROI data
     """
     try:
-        result = sb.table("draft_roi").select("*").execute()
+        result = _sb.table("draft_roi").select("*").execute()
         return result.data
     except Exception:
         return []
 
 
 @st.cache_data(show_spinner=False)
-def get_players_data(sb: Client) -> List[Dict[str, Any]]:
+def get_players_data(_sb: Client) -> List[Dict[str, Any]]:
     """Get players data.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         List[Dict[str, Any]]: Players data
     """
     try:
-        result = sb.table("players").select("player_id,name").execute()
+        result = _sb.table("players").select("player_id,name").execute()
         return result.data
     except Exception:
         return []
@@ -389,29 +385,29 @@ def get_players_data(sb: Client) -> List[Dict[str, Any]]:
 # HELPER FUNCTIONS
 # =============================================================================
 
-def create_team_name_mapping(sb: Client) -> Dict[str, str]:
+def create_team_name_mapping(_sb: Client) -> Dict[str, str]:
     """Create a mapping of manager_id to team_name.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         Dict[str, str]: Mapping of manager_id to team_name
     """
-    return get_team_names(sb)
+    return get_team_names(_sb)
 
 
-def create_player_name_mapping(sb: Client) -> Dict[str, str]:
+def create_player_name_mapping(_sb: Client) -> Dict[str, str]:
     """Create a mapping of player_id to player name.
     
     Args:
-        sb: Supabase client
+        _sb: Supabase client
         
     Returns:
         Dict[str, str]: Mapping of player_id to player name
     """
     try:
-        players_data = get_players_data(sb)
+        players_data = get_players_data(_sb)
         return {p["player_id"]: p["name"] for p in players_data}
     except Exception:
         return {}

@@ -5,7 +5,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
-from app.lib.streamlit_utils import get_current_week, get_available_weeks, get_recap_for_week, get_available_recap_weeks
+from lib.streamlit_utils import get_current_week, get_available_weeks, get_recap_for_week, get_available_recap_weeks
 
 load_dotenv()
 

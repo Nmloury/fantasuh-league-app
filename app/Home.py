@@ -3,7 +3,7 @@ import re
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
-from app.lib.streamlit_utils import (
+from lib.streamlit_utils import (
     get_current_week, 
     get_latest_recap, 
     get_closest_matchup, 
