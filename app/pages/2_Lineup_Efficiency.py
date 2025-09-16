@@ -167,8 +167,8 @@ else:
     # Use filtered data for display
     display_df = filtered_df
     
-    # Sort by points left on bench (regret) - highest first
-    display_df = display_df.sort_values("Points Left on Bench", ascending=False)
+    # Sort by week (most recent first) and then by efficiency % (highest first)
+    display_df = display_df.sort_values(["Week", "Efficiency %"], ascending=[False, False])
     
     # Display table
     st.dataframe(

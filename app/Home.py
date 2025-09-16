@@ -95,7 +95,7 @@ with col2:
     if standings:
         # Create compact standings table using Streamlit dataframe
         standings_data = []
-        for i, team in enumerate(standings[:8], 1):  # Show top 8
+        for i, team in enumerate(standings, 1):  # Show all teams
             standings_data.append({
                 "Rank": i,
                 "Team": team['team_name'],
