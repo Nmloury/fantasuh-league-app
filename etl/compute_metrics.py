@@ -36,10 +36,26 @@ def get_most_recent_completed_week(sb):
         print("Falling back to week 1")
         return 1  # Default to week 1 on error
 
+def update_current_week_in_db(sb, week):
+    """Update the current week in the database."""
+    try:
+        sb.table("app_config").upsert({
+            "key": "current_week",
+            "value": str(week),
+            "updated_at": "now()"
+        }).execute()
+        print(f"Updated current week to {week} in database")
+    except Exception as e:
+        print(f"Error updating current week in database: {e}")
+
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 
 most_recent_week = get_most_recent_completed_week(sb)
+
+# Store the current week in the database for Streamlit app to use
+update_current_week_in_db(sb, most_recent_week)
+
 print("Computing lineup efficiency")
 print(f"Computing lineup efficiency up to week {most_recent_week}")
 compute_lineup_efficiency(sb, max_week=most_recent_week)

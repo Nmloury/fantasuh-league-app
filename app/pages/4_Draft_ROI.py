@@ -5,6 +5,7 @@ import streamlit as st
 import altair as alt
 from dotenv import load_dotenv
 from supabase import create_client
+from app.lib.streamlit_utils import get_draft_roi_data, get_managers_data, get_players_data
 
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
@@ -17,13 +18,13 @@ st.markdown("""
 It shows how many fantasy points you got per auction dollar spent on each player, showing which players were great values and which were busts.
 """)
 
-rows = sb.table("draft_roi").select("*").execute().data
+rows = get_draft_roi_data(sb)
 if not rows:
     st.info("No Draft ROI records yet.")
 else:
     df = pd.DataFrame(rows)
-    names = sb.table("managers").select("manager_id,team_name").execute().data
-    players = sb.table("players").select("player_id,name").execute().data
+    names = get_managers_data(sb)
+    players = get_players_data(sb)
     name_map = {n["manager_id"]: n["team_name"] for n in names}
     pmap = {p["player_id"]: p["name"] for p in players}
 

@@ -5,6 +5,7 @@ import streamlit as st
 import altair as alt
 from dotenv import load_dotenv
 from supabase import create_client
+from app.lib.streamlit_utils import get_expected_wins_data, get_actual_wins_data, get_managers_data
 
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
@@ -19,9 +20,9 @@ have been unlucky despite strong performances.
 """)
 
 # Data processing
-xw = sb.table("expected_wins").select("manager_id,cum_xw,week").execute().data
-wins = sb.table("v_actual_wins").select("manager_id,wins").execute().data
-names = sb.table("managers").select("manager_id,team_name").execute().data
+xw = get_expected_wins_data(sb)
+wins = get_actual_wins_data(sb)
+names = get_managers_data(sb)
 
 dx = pd.DataFrame(xw).sort_values("week").groupby("manager_id", as_index=False)["cum_xw"].last()
 dw = pd.DataFrame(wins)

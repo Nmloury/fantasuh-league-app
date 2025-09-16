@@ -3,6 +3,13 @@ import re
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
+from app.lib.streamlit_utils import (
+    get_current_week, 
+    get_latest_recap, 
+    get_closest_matchup, 
+    get_standings, 
+    get_team_names
+)
 
 # Load .env so env vars work in local dev
 load_dotenv()
@@ -19,135 +26,41 @@ if not (SUPABASE_URL and SUPABASE_KEY):
 
 sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# --- Cached data functions ---
-@st.cache_data(show_spinner=False)
-def get_latest_recap():
-    """Get the most recent recap from the database."""
-    try:
-        result = sb.table("recaps").select("*").order("week", desc=True).limit(1).execute()
-        return result.data[0] if result.data else None
-    except Exception:
-        return None
-
-@st.cache_data(show_spinner=False)
-def get_closest_matchup():
-    """Get the closest finished matchup from the last completed week."""
-    try:
-        # Get all weeks with completed matchups (both scores not null and at least one not zero)
-        completed_weeks = sb.table("matchups").select("week").not_.is_("score_a", "null").not_.is_("score_b", "null").or_("score_a.gt.0,score_b.gt.0").order("week", desc=True).execute()
-        
-        if not completed_weeks.data:
-            return None
-        
-        # Get the most recent completed week
-        week = completed_weeks.data[0]["week"]
-        
-        # Get all matchups for that week with actual scores
-        matchups = sb.table("matchups").select("*").eq("week", week).not_.is_("score_a", "null").not_.is_("score_b", "null").or_("score_a.gt.0,score_b.gt.0").execute()
-        
-        if not matchups.data:
-            return None
-        
-        # Find closest matchup
-        closest = None
-        min_diff = float('inf')
-        
-        for matchup in matchups.data:
-            diff = abs(matchup["score_a"] - matchup["score_b"])
-            if diff < min_diff:
-                min_diff = diff
-                closest = matchup
-        
-        return closest, week
-    except Exception:
-        return None
-
-@st.cache_data(show_spinner=False)
-def get_standings():
-    """Get current standings with team names for the last completed week."""
-    try:
-        # Get the most recent completed week (where games have been played with actual scores)
-        completed_weeks = sb.table("matchups").select("week").not_.is_("score_a", "null").not_.is_("score_b", "null").or_("score_a.gt.0,score_b.gt.0").order("week", desc=True).execute()
-        
-        if not completed_weeks.data:
-            return []
-        
-        week = completed_weeks.data[0]["week"]
-        
-        # Get standings for that week
-        standings = sb.table("v_standings").select("manager_id, cum_wins, cum_pf").eq("week", week).order("cum_wins", desc=True).order("cum_pf", desc=True).execute()
-        
-        # Get team names
-        managers = sb.table("managers").select("manager_id, team_name").execute()
-        team_names = {m["manager_id"]: m["team_name"] for m in managers.data}
-        
-        # Calculate records and streaks
-        results = []
-        for standing in standings.data:
-            manager_id = standing["manager_id"]
-            wins = standing["cum_wins"]
-            losses = week - wins
-            
-            # Get recent results for streak calculation (only up to the most recent completed week)
-            recent_scores = sb.table("v_team_week_scores").select("win").eq("manager_id", manager_id).gte("week", max(1, week-4)).lte("week", week).order("week", desc=True).execute()
-            
-            streak = "—"
-            if recent_scores.data:
-                streak_wins = 0
-                streak_losses = 0
-                for score in recent_scores.data:
-                    if score["win"]:
-                        if streak_losses > 0:
-                            break
-                        streak_wins += 1
-                    else:
-                        if streak_wins > 0:
-                            break
-                        streak_losses += 1
-                
-                if streak_wins > 0:
-                    streak = f"W{streak_wins}"
-                elif streak_losses > 0:
-                    streak = f"L{streak_losses}"
-            
-            results.append({
-                "team_name": team_names.get(manager_id, manager_id),
-                "wins": wins,
-                "losses": losses,
-                "streak": streak
-            })
-        
-        return results
-    except Exception:
-        return []
-
-@st.cache_data(show_spinner=False)
-def get_team_names():
-    """Get mapping of manager_id to team_name."""
-    try:
-        result = sb.table("managers").select("manager_id, team_name").execute()
-        return {m["manager_id"]: m["team_name"] for m in result.data}
-    except Exception:
-        return {}
+# --- Cached data functions are now imported from streamlit_utils ---
 
 # --- Main Layout ---
 st.title("🏈 Fantasuhhhhh 2025 League Hub")
 
 # Section 1: Weekly Recap Hero
 st.header("📰 Weekly Recap")
-latest_recap = get_latest_recap()
+latest_recap = get_latest_recap(sb)
 
 if latest_recap:
     st.subheader(latest_recap.get("title", "Weekly Recap"))
     
-    # Extract first few sentences from content for blurb
+    # Extract title and bullet points from content
     content = latest_recap.get("content_md", "")
-    # Remove markdown formatting for cleaner blurb
-    clean_content = re.sub(r'[#*`\[\]()]', '', content)
-    sentences = clean_content.split('. ')
-    blurb = '. '.join(sentences[:2]) + '.' if len(sentences) >= 2 else clean_content[:200] + "..."
+    lines = content.split('\n')
     
-    st.write(blurb)
+    # Find bullet points (lines starting with "- ")
+    bullet_points = []
+    for line in lines:
+        line = line.strip()
+        if line.startswith('- '):
+            # Remove the bullet point marker and clean up
+            bullet_text = line[2:].strip()
+            if bullet_text:
+                bullet_points.append(bullet_text)
+    
+    # Display bullet points if found
+    if bullet_points:
+        for bullet in bullet_points:
+            st.write(f"• {bullet}")
+    else:
+        # Fallback: show first few lines if no bullet points found
+        first_lines = [line.strip() for line in lines[:3] if line.strip() and not line.startswith('#')]
+        if first_lines:
+            st.write('\n'.join(first_lines))
     if st.button("Read full recap →", key="recap_link"):
         st.switch_page("pages/1_Weekly_Recap.py")
 else:
@@ -160,11 +73,11 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.header("🎯 Game of the Week")
-    closest_data = get_closest_matchup()
+    closest_data = get_closest_matchup(sb)
     
     if closest_data:
         matchup, week = closest_data
-        team_names = get_team_names()
+        team_names = get_team_names(sb)
         
         team_a_name = team_names.get(matchup["team_a"], matchup["team_a"])
         team_b_name = team_names.get(matchup["team_b"], matchup["team_b"])
@@ -177,7 +90,7 @@ with col1:
 
 with col2:
     st.header("📊 Standings Snapshot")
-    standings = get_standings()
+    standings = get_standings(sb)
     
     if standings:
         # Create compact standings table using Streamlit dataframe

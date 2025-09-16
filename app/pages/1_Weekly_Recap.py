@@ -5,6 +5,7 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from supabase import create_client
+from app.lib.streamlit_utils import get_current_week, get_available_weeks, get_recap_for_week, get_available_recap_weeks
 
 load_dotenv()
 
@@ -12,27 +13,10 @@ sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE
 
 st.title("📰 Weekly League Recaps")
 
-# --- Cached data functions ---
-@st.cache_data(show_spinner=False)
-def get_available_weeks():
-    """Get all weeks that have recaps available."""
-    try:
-        result = sb.table("recaps").select("week").order("week", desc=True).execute()
-        return [row["week"] for row in result.data] if result.data else []
-    except Exception:
-        return []
-
-@st.cache_data(show_spinner=False)
-def get_recap_for_week(week: int):
-    """Get the recap for a specific week."""
-    try:
-        result = sb.table("recaps").select("*").eq("week", week).limit(1).execute()
-        return result.data[0] if result.data else None
-    except Exception:
-        return None
+# --- Cached data functions are now imported from streamlit_utils ---
 
 # Get available weeks
-available_weeks = get_available_weeks()
+available_weeks = get_available_recap_weeks(sb)
 
 if not available_weeks:
     st.info("No recaps available yet. Recaps will appear here once they're generated.")
@@ -48,7 +32,7 @@ week = st.selectbox(
 )
 
 # Get recap for selected week
-recap = get_recap_for_week(week)
+recap = get_recap_for_week(sb, week)
 
 if recap:
     # Display recap content

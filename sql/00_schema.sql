@@ -158,3 +158,13 @@ create table if not exists recaps (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- App configuration table to store current week and other settings
+create table if not exists app_config (
+  key varchar(50) primary key,
+  value varchar(100) not null,
+  updated_at timestamptz not null default now()
+);
+
+-- Insert default current week
+insert into app_config (key, value) values ('current_week', '1') on conflict (key) do nothing;

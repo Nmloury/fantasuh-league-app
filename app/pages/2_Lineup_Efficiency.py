@@ -5,6 +5,7 @@ import streamlit as st
 import altair as alt
 from dotenv import load_dotenv
 from supabase import create_client
+from app.lib.streamlit_utils import get_lineup_efficiency_data, get_managers_data
 
 load_dotenv()
 sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
@@ -18,8 +19,8 @@ It shows how many points you left on the bench and how efficiently you're using 
 """)
 
 # Get all data for filtering
-all_le = sb.table("lineup_efficiency").select("*").execute().data
-names = sb.table("managers").select("manager_id,team_name").execute().data
+all_le = get_lineup_efficiency_data(sb)
+names = get_managers_data(sb)
 
 df = pd.DataFrame(all_le)
 if df.empty:
