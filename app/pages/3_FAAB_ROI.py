@@ -30,6 +30,15 @@ else:
 
     df["team_name"] = df["manager_id"].map(name_map)
     df["player"] = df["player_id"].map(pmap)
+    
+    # Add position mapping (primary position is first in eligible_positions array)
+    position_map = {}
+    for p in players:
+        if p.get("eligible_positions") and len(p["eligible_positions"]) > 0:
+            position_map[p["player_id"]] = p["eligible_positions"][0]
+        else:
+            position_map[p["player_id"]] = "Unknown"
+    df["position"] = df["player_id"].map(position_map)
 
     # Support either-single or dual-metric implementations
     if "points_added_starts" in df.columns:
@@ -40,8 +49,8 @@ else:
         df["ppd"] = (df["points_added"] / df["faab_spent"]).replace([float("inf")], None).round(3)
 
     # Prepare display columns based on available data
-    display_columns = ["team_name", "player", "faab_spent"]
-    column_names = ["Team", "Player", "FAAB Spent ($)"]
+    display_columns = ["team_name", "player", "position", "faab_spent"]
+    column_names = ["Team", "Player", "Position", "FAAB Spent ($)"]
     
     # Add available metrics
     if "pts_all" in df.columns:
@@ -86,6 +95,15 @@ else:
             available_players = [p for p in display_df['Player'].unique() if player_search.lower() in p.lower()]
         else:
             available_players = display_df['Player'].unique()
+        
+        # Position filter
+        available_positions = sorted(display_df['Position'].unique())
+        selected_positions = st.multiselect(
+            "Positions", 
+            options=available_positions, 
+            default=available_positions,
+            help="Select player positions to include"
+        )
     
     with col2:
         # FAAB Spent range filter
@@ -154,6 +172,9 @@ else:
     if player_search:
         filtered_df = filtered_df[filtered_df['Player'].str.contains(player_search, case=False, na=False)]
     
+    # Position filter
+    filtered_df = filtered_df[filtered_df['Position'].isin(selected_positions)]
+    
     # FAAB range filter
     filtered_df = filtered_df[
         (filtered_df['FAAB Spent ($)'] >= faab_range[0]) & 
@@ -191,6 +212,7 @@ else:
     column_config = {
         "Team": st.column_config.TextColumn("Team", width="medium"),
         "Player": st.column_config.TextColumn("Player", width="medium"),
+        "Position": st.column_config.TextColumn("Position", width="small", help="Player's primary position"),
         "FAAB Spent ($)": st.column_config.NumberColumn("FAAB Spent ($)", width="small", help="Dollars spent to acquire this player")
     }
     

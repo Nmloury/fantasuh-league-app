@@ -375,7 +375,7 @@ def get_players_data(_sb: Client) -> List[Dict[str, Any]]:
         List[Dict[str, Any]]: Players data
     """
     try:
-        result = _sb.table("players").select("player_id,name").execute()
+        result = _sb.table("players").select("player_id,name,eligible_positions").execute()
         return result.data
     except Exception:
         return []

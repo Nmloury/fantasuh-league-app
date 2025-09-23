@@ -30,10 +30,19 @@ else:
 
     df["team_name"] = df["manager_id"].map(name_map)
     df["player"] = df["player_id"].map(pmap)
+    
+    # Add position mapping (primary position is first in eligible_positions array)
+    position_map = {}
+    for p in players:
+        if p.get("eligible_positions") and len(p["eligible_positions"]) > 0:
+            position_map[p["player_id"]] = p["eligible_positions"][0]
+        else:
+            position_map[p["player_id"]] = "Unknown"
+    df["position"] = df["player_id"].map(position_map)
 
     # Prepare display columns
-    display_columns = ["team_name", "player", "draft_cost", "pts_all", "pts_per_dollar_all", "pts_starting", "pts_per_dollar_starting"]
-    column_names = ["Team", "Player", "Draft Cost", "Total Points", "Points per $", "Starting Points", "Starting Points per $"]
+    display_columns = ["team_name", "player", "position", "draft_cost", "pts_all", "pts_per_dollar_all", "pts_starting", "pts_per_dollar_starting"]
+    column_names = ["Team", "Player", "Position", "Draft Cost", "Total Points", "Points per $", "Starting Points", "Starting Points per $"]
     
     display_df = df[display_columns].copy()
     display_df.columns = column_names
@@ -67,6 +76,15 @@ else:
             available_players = [p for p in display_df['Player'].unique() if player_search.lower() in p.lower()]
         else:
             available_players = display_df['Player'].unique()
+        
+        # Position filter
+        available_positions = sorted(display_df['Position'].unique())
+        selected_positions = st.multiselect(
+            "Positions", 
+            options=available_positions, 
+            default=available_positions,
+            help="Select player positions to include"
+        )
     
     with col2:
         # Draft Cost range filter
@@ -122,6 +140,9 @@ else:
     if player_search:
         filtered_df = filtered_df[filtered_df['Player'].str.contains(player_search, case=False, na=False)]
     
+    # Position filter
+    filtered_df = filtered_df[filtered_df['Position'].isin(selected_positions)]
+    
     # Draft cost range filter
     filtered_df = filtered_df[
         (filtered_df['Draft Cost'] >= cost_range[0]) & 
@@ -150,6 +171,7 @@ else:
     column_config = {
         "Team": st.column_config.TextColumn("Team", width="medium"),
         "Player": st.column_config.TextColumn("Player", width="medium"),
+        "Position": st.column_config.TextColumn("Position", width="small", help="Player's primary position"),
         "Draft Cost": st.column_config.NumberColumn("Draft Cost", width="small", help="Draft cost used to acquire this player", format="$%d"),
         "Total Points": st.column_config.NumberColumn("Total Points", width="small", help="Total fantasy points scored while on roster"),
         "Points per $": st.column_config.NumberColumn("Points per $", width="small", help="Fantasy points per draft cost spent"),
